@@ -51,7 +51,7 @@ def main():
             return "| " + " | ".join(f"{cell:<{col_widths[i]}}" for i, cell in enumerate(row)) + " |"
 
         f.write(fmt_row(table_rows[0]) + "\n")
-        f.write("|" + "|".join("-" * (col_widths[i] + 2) for i in range(2)) + "|\n")
+        f.write("| :---: | --- |\n")
         for row in table_rows[1:]:
             f.write(fmt_row(row) + "\n")
 

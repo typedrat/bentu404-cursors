@@ -1,5 +1,5 @@
 | Package                              | Preview                                                                       |
-|--------------------------------------|-------------------------------------------------------------------------------|
+| :---: | --- |
 | `acheron`                            | [![](acheron.gif)](https://ko-fi.com/s/994f03fda0)                            |
 | `ado`                                | [![](ado.gif)](https://ko-fi.com/s/100d037321)                                |
 | `albedo`                             | [![](albedo.gif)](https://ko-fi.com/s/71d372e376)                             |
@@ -66,7 +66,7 @@
 | `lynette`                            | [![](lynette.gif)](https://ko-fi.com/s/4987d0a7cd)                            |
 | `maglielle`                          | [![](maglielle.gif)](https://ko-fi.com/s/ce89286c47)                          |
 | `mahira`                             | [![](mahira.gif)](https://ko-fi.com/s/159059bae7)                             |
-| `march-7-th`                         | [![](march-7-th.gif)](https://ko-fi.com/s/c2883a69bb)                         |
+| `march-7th`                          | [![](march-7th.gif)](https://ko-fi.com/s/c2883a69bb)                          |
 | `mayoi-shigure`                      | [![](mayoi-shigure.gif)](https://ko-fi.com/s/76f3887102)                      |
 | `mayuzumi-fuyuko`                    | [![](mayuzumi-fuyuko.gif)](https://ko-fi.com/s/e4ceeac25c)                    |
 | `megumi-kato`                        | [![](megumi-kato.gif)](https://ko-fi.com/s/2add475a56)                        |
