@@ -13,7 +13,9 @@ dependencies = [
 ]
 
 [project.scripts]
-convertcursors = "bentu404_cursors:main"
+convertcursors = "bentu404_cursors:convertcursors"
+downloadcursors = "bentu404_cursors:downloadcursors"
+generatepreviews = "bentu404_cursors:generatepreviews"
 
 [build-system]
 requires = ["hatchling"]
