@@ -17,3 +17,4 @@ wheels/
 # Cursor stuff
 cursors/*.zip
 output/*
+nix_store_paths.json

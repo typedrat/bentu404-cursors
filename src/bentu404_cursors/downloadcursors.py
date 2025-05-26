@@ -27,6 +27,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 
+
 def sanitize_name(filename: str) -> str:
     """
     Sanitize filename to create a valid package name.
@@ -50,7 +51,7 @@ def sanitize_name(filename: str) -> str:
         base = filename
 
     # Insert spaces at word boundaries: camelCase, PascalCase, digits
-    spaced = re.sub(r'(?<=[a-z])(?=[A-Z0-9])|(?<=[0-9])(?=[A-Za-z])', ' ', base)
+    spaced = re.sub(r"(?<=[a-z])(?=[A-Z0-9])|(?<=[0-9])(?=[A-Za-z])", " ", base)
 
     # Lowercase, replace spaces and underscores with dashes, strip illegal characters
     lowered = spaced.lower()
@@ -58,21 +59,25 @@ def sanitize_name(filename: str) -> str:
     sanitized = re.sub(r"[^a-z0-9-]", "", dashed)
 
     # Remove repeated dashes and trailing dashes
-    sanitized = re.sub(r'-+', '-', sanitized)
-    return sanitized.rstrip('-')
+    sanitized = re.sub(r"-+", "-", sanitized)
+    return sanitized.rstrip("-")
+
 
 @dataclass
 class CursorMetadata:
     """Class for storing cursor metadata."""
+
     filename: str
     url: str
     preview_image: Optional[str] = None
     hash: Optional[str] = None
-    download_date: str = field(default_factory=lambda: datetime.datetime.now().isoformat())
+    download_date: str = field(
+        default_factory=lambda: datetime.datetime.now().isoformat()
+    )
     name: Optional[str] = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CursorMetadata':
+    def from_dict(cls, data: Dict[str, Any]) -> "CursorMetadata":
         """Create a CursorMetadata object from a dictionary."""
         return cls(**data)
 
@@ -86,8 +91,16 @@ class CursorMetadata:
         if self.filename:
             self.name = sanitize_name(self.filename)
 
+
 class KofiCursorDownloader:
-    def __init__(self, download_dir, headless=False, user_profile=None, skip_items=0, specific_url=None):
+    def __init__(
+        self,
+        download_dir,
+        headless=False,
+        user_profile=None,
+        skip_items=0,
+        specific_url=None,
+    ):
         """
         Initialize the downloader with the target download directory.
 
@@ -116,7 +129,7 @@ class KofiCursorDownloader:
         """Load the tracking data from the JSON file if it exists."""
         if self.tracking_file.exists():
             try:
-                with open(self.tracking_file, 'r') as f:
+                with open(self.tracking_file, "r") as f:
                     data = json.load(f)
                     # Handle both formats (new list format and old dict format)
                     if isinstance(data, dict) and "downloaded_cursors" in data:
@@ -134,7 +147,9 @@ class KofiCursorDownloader:
                         cursors.append(cursor)
                     return cursors
             except json.JSONDecodeError:
-                print(f"Warning: Could not parse tracking file {self.tracking_file}, creating new one")
+                print(
+                    f"Warning: Could not parse tracking file {self.tracking_file}, creating new one"
+                )
                 return []
         return []
 
@@ -142,7 +157,7 @@ class KofiCursorDownloader:
         """Save the tracking data to the JSON file."""
         # Convert CursorMetadata objects to dictionaries for JSON serialization
         serializable_data = [cursor.to_dict() for cursor in self.downloaded_cursors]
-        with open(self.tracking_file, 'w') as f:
+        with open(self.tracking_file, "w") as f:
             json.dump(serializable_data, f, indent=2)
 
     def add_downloaded_cursor(self, filename, url, preview_image=None, sri_hash=None):
@@ -152,7 +167,7 @@ class KofiCursorDownloader:
             url=url,
             preview_image=preview_image,
             hash=sri_hash,
-            name=sanitize_name(filename)
+            name=sanitize_name(filename),
         )
         self.downloaded_cursors.append(cursor)
         self.save_tracking_data()
@@ -174,10 +189,10 @@ class KofiCursorDownloader:
         Returns:
             SRI hash string in the format 'sha256-base64hash'
         """
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             file_data = f.read()
             hash_obj = hashlib.sha256(file_data)
-            hash_base64 = base64.b64encode(hash_obj.digest()).decode('ascii')
+            hash_base64 = base64.b64encode(hash_obj.digest()).decode("ascii")
             return f"sha256-{hash_base64}"
 
     def download_file(self, url, cookies=None):
@@ -200,15 +215,17 @@ class KofiCursorDownloader:
         # Add cookies from the browser if provided
         if cookies:
             for cookie in cookies:
-                session.cookies.set(cookie['name'], cookie['value'], domain=cookie['domain'])
+                session.cookies.set(
+                    cookie["name"], cookie["value"], domain=cookie["domain"]
+                )
 
         # Set headers to mimic a browser
         headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
         }
 
         # Make the request, following redirects
@@ -217,7 +234,7 @@ class KofiCursorDownloader:
 
         # Try to get filename from Content-Disposition header
         filename = None
-        content_disposition = response.headers.get('Content-Disposition')
+        content_disposition = response.headers.get("Content-Disposition")
         if content_disposition:
             # Try to extract filename from Content-Disposition
             match = re.search(r'filename=["\']?([^"\';\n]+)', content_disposition)
@@ -230,7 +247,7 @@ class KofiCursorDownloader:
             filename = unquote(os.path.basename(parsed_url.path))
 
         # Ensure we have a valid filename
-        if not filename or filename == '':
+        if not filename or filename == "":
             filename = f"download_{int(time.time())}.zip"
 
         # Make sure the filename is safe
@@ -240,7 +257,7 @@ class KofiCursorDownloader:
         file_path = self.download_dir / filename
 
         # Download the file in chunks
-        with open(file_path, 'wb') as f:
+        with open(file_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
@@ -259,6 +276,7 @@ class KofiCursorDownloader:
 
         # Use chromium from PATH
         import shutil
+
         chromium_path = shutil.which("chromium")
         if not chromium_path:
             print("Warning: 'chromium' not found in PATH, falling back to default")
@@ -274,7 +292,7 @@ class KofiCursorDownloader:
             "download.default_directory": str(self.download_dir.absolute()),
             "download.prompt_for_download": False,
             "download.directory_upgrade": True,
-            "safebrowsing.enabled": False
+            "safebrowsing.enabled": False,
         }
         options.add_experimental_option("prefs", prefs)
 
@@ -316,7 +334,9 @@ class KofiCursorDownloader:
                 previous_item_count = current_item_count
 
             # Scroll to the bottom of the page
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            self.driver.execute_script(
+                "window.scrollTo(0, document.body.scrollHeight);"
+            )
             time.sleep(2)  # Wait for items to load
 
             # Press End key to ensure we're at the bottom
@@ -326,7 +346,14 @@ class KofiCursorDownloader:
         print(f"Finished loading all items. Total found: {current_item_count}")
         return current_item_count
 
-    def _process_item_url(self, url, main_window=None, item_index=None, total_items=None, force_download=False):
+    def _process_item_url(
+        self,
+        url,
+        main_window=None,
+        item_index=None,
+        total_items=None,
+        force_download=False,
+    ):
         """
         Process a single item URL to download the cursor pack.
 
@@ -338,13 +365,13 @@ class KofiCursorDownloader:
             force_download: If True, download even if already downloaded and replace tracking data
         """
         if main_window is not None:
-            self.driver.switch_to.new_window('tab')
+            self.driver.switch_to.new_window("tab")
 
         try:
             # Optional item number for logging
             item_info = ""
             if item_index is not None and total_items is not None:
-                item_info = f" {item_index+1}/{total_items}"
+                item_info = f" {item_index + 1}/{total_items}"
 
             print(f"Processing item{item_info}: {url}")
 
@@ -360,7 +387,9 @@ class KofiCursorDownloader:
             if force_download and self.is_url_downloaded(url):
                 print(f"Forcing redownload of item: {url}")
                 # Remove all entries with this URL
-                self.downloaded_cursors = [item for item in self.downloaded_cursors if item.url != url]
+                self.downloaded_cursors = [
+                    item for item in self.downloaded_cursors if item.url != url
+                ]
                 self.save_tracking_data()
 
             # Navigate to the item URL
@@ -374,7 +403,7 @@ class KofiCursorDownloader:
                     By.XPATH, "//div[contains(@class, 'carousel-item')]/img"
                 )
                 for element in preview_image_elements:
-                    img_src = element.get_attribute('src')
+                    img_src = element.get_attribute("src")
                     if img_src:
                         preview_images.append(img_src)
 
@@ -387,7 +416,9 @@ class KofiCursorDownloader:
 
             # Enter 0 in the payment field
             payment_field = self.wait.until(
-                EC.element_to_be_clickable((By.XPATH, "//input[contains(@placeholder, '$0 or more')]"))
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//input[contains(@placeholder, '$0 or more')]")
+                )
             )
             payment_field.clear()
             payment_field.send_keys("0")
@@ -402,13 +433,17 @@ class KofiCursorDownloader:
             # Check if we're already logged in
             try:
                 # If we need to enter email/name, we're not logged in
-                email_field = self.driver.find_element(By.XPATH, "//input[@placeholder='Email address']")
+                email_field = self.driver.find_element(
+                    By.XPATH, "//input[@placeholder='Email address']"
+                )
                 print("Not logged in, filling guest checkout form")
 
                 # Fill in guest checkout form
                 email_field.send_keys("guest@example.com")
 
-                name_field = self.driver.find_element(By.XPATH, "//input[@placeholder='Your name or nickname']")
+                name_field = self.driver.find_element(
+                    By.XPATH, "//input[@placeholder='Your name or nickname']"
+                )
                 name_field.send_keys("Guest")
 
             except NoSuchElementException:
@@ -417,14 +452,18 @@ class KofiCursorDownloader:
 
             # Click Checkout Now
             checkout_button = self.wait.until(
-                EC.element_to_be_clickable((By.XPATH, "/html/body/div[2]/div/div/div/div[1]/div[5]/button"))
+                EC.element_to_be_clickable(
+                    (By.XPATH, "/html/body/div[2]/div/div/div/div[1]/div[5]/button")
+                )
             )
             checkout_button.click()
             time.sleep(3)
 
             # Click View Content
             view_content_button = self.wait.until(
-                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'View Content')]"))
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//button[contains(text(), 'View Content')]")
+                )
             )
             view_content_button.click()
             time.sleep(2)
@@ -447,25 +486,32 @@ class KofiCursorDownloader:
                         file_hint = ""
                         try:
                             file_text_element = button.find_element(
-                                By.XPATH, "./ancestor::li/div[contains(@class, 'kfds-font-text-limit')]"
+                                By.XPATH,
+                                "./ancestor::li/div[contains(@class, 'kfds-font-text-limit')]",
                             )
                             file_hint = file_text_element.text.strip()
-                            print(f"Processing ani.zip ({idx+1}/{len(ani_buttons)}): {file_hint}")
+                            print(
+                                f"Processing ani.zip ({idx + 1}/{len(ani_buttons)}): {file_hint}"
+                            )
                         except Exception as hint_error:
-                            print(f"Processing ani.zip ({idx+1}/{len(ani_buttons)})")
+                            print(f"Processing ani.zip ({idx + 1}/{len(ani_buttons)})")
                             print(f"Note: Could not get file hint: {hint_error}")
 
                         # Get the download URL
-                        download_url = button.get_attribute('href')
+                        download_url = button.get_attribute("href")
                         if not download_url:
-                            print(f"Could not get download URL for ani.zip ({idx+1}/{len(ani_buttons)})")
+                            print(
+                                f"Could not get download URL for ani.zip ({idx + 1}/{len(ani_buttons)})"
+                            )
                             continue
 
                         # Get browser cookies for the download
                         cookies = self.driver.get_cookies()
 
                         # Download the file
-                        file_path, actual_filename, sri_hash = self.download_file(download_url, cookies)
+                        file_path, actual_filename, sri_hash = self.download_file(
+                            download_url, cookies
+                        )
                         print(f"Downloaded cursor pack: {actual_filename}")
 
                         # Get a preview image for this download
@@ -476,11 +522,16 @@ class KofiCursorDownloader:
                             preview_image = preview_images[img_index]
 
                         # Add to tracking data
-                        self.add_downloaded_cursor(actual_filename, url, preview_image, sri_hash)
+                        self.add_downloaded_cursor(
+                            actual_filename, url, preview_image, sri_hash
+                        )
                         files_downloaded = True
                     except Exception as e:
                         import traceback
-                        print(f"Error downloading ani.zip ({idx+1}/{len(ani_buttons)}): {e}")
+
+                        print(
+                            f"Error downloading ani.zip ({idx + 1}/{len(ani_buttons)}): {e}"
+                        )
                         print("Traceback for this download attempt:")
                         traceback.print_exc()
 
@@ -489,7 +540,9 @@ class KofiCursorDownloader:
                 if not ani_buttons:
                     print("No ani.zip button found, looking for alternative downloads")
                 else:
-                    print("Failed to download any ani.zip files, trying alternative downloads")
+                    print(
+                        "Failed to download any ani.zip files, trying alternative downloads"
+                    )
 
                 download_buttons = []
 
@@ -506,7 +559,8 @@ class KofiCursorDownloader:
                     try:
                         # Check the file text description
                         file_text_element = button.find_element(
-                            By.XPATH, "./ancestor::li/div[contains(@class, 'kfds-font-text-limit')]"
+                            By.XPATH,
+                            "./ancestor::li/div[contains(@class, 'kfds-font-text-limit')]",
                         )
                         file_text = file_text_element.text.strip().lower()
 
@@ -522,7 +576,9 @@ class KofiCursorDownloader:
                             other_buttons.append(button)
                     except Exception as e:
                         # If we can't determine the file type, include the button to be safe
-                        print(f"Couldn't determine file type for download button, including it: {e}")
+                        print(
+                            f"Couldn't determine file type for download button, including it: {e}"
+                        )
                         other_buttons.append(button)
 
                 # Prioritize .zip files, then fall back to other buttons
@@ -535,15 +591,19 @@ class KofiCursorDownloader:
                 if download_buttons:
                     # Process the first alternative download
                     try:
-                        print(f"Processing alternative download button (type: {type(download_buttons[0]).__name__})")
-                        download_url = download_buttons[0].get_attribute('href')
+                        print(
+                            f"Processing alternative download button (type: {type(download_buttons[0]).__name__})"
+                        )
+                        download_url = download_buttons[0].get_attribute("href")
 
                         if download_url:
                             # Get browser cookies for the download
                             cookies = self.driver.get_cookies()
 
                             # Download the file using our custom function
-                            file_path, actual_filename, sri_hash = self.download_file(download_url, cookies)
+                            file_path, actual_filename, sri_hash = self.download_file(
+                                download_url, cookies
+                            )
                             print(f"Downloaded cursor pack: {actual_filename}")
 
                             # Get a preview image for this alternative download
@@ -553,12 +613,15 @@ class KofiCursorDownloader:
                                 preview_image = preview_images[0]
 
                             # Add to tracking data
-                            self.add_downloaded_cursor(actual_filename, url, preview_image, sri_hash)
+                            self.add_downloaded_cursor(
+                                actual_filename, url, preview_image, sri_hash
+                            )
                             files_downloaded = True
                         else:
                             print("Could not get download URL")
                     except Exception as alt_error:
                         import traceback
+
                         print(f"Error processing alternative download: {alt_error}")
                         print("Traceback for alternative download:")
                         traceback.print_exc()
@@ -572,8 +635,7 @@ class KofiCursorDownloader:
                 self.driver.switch_to.window(main_window)
 
         except Exception as e:
-            print(f"Error processing item {item_info}: {e}") # pyright: ignore
-
+            print(f"Error processing item {item_info}: {e}")  # pyright: ignore
 
             # Close the current tab if it's still open and we opened a new tab
             if main_window is not None:
@@ -630,7 +692,7 @@ class KofiCursorDownloader:
         for button in free_buttons:
             try:
                 # Get the URL from the href attribute
-                url = button.get_attribute('href')
+                url = button.get_attribute("href")
                 if url:
                     item_urls.append(url)
             except Exception as e:
@@ -641,11 +703,13 @@ class KofiCursorDownloader:
         # Skip items if requested
         if self.skip_items > 0:
             if self.skip_items >= len(item_urls):
-                print(f"Skip count ({self.skip_items}) exceeds available items ({len(item_urls)})")
+                print(
+                    f"Skip count ({self.skip_items}) exceeds available items ({len(item_urls)})"
+                )
                 return
 
             print(f"Skipping first {self.skip_items} items")
-            item_urls = item_urls[self.skip_items:]
+            item_urls = item_urls[self.skip_items :]
 
         # Store the main window handle
         main_window = self.driver.current_window_handle
@@ -653,17 +717,23 @@ class KofiCursorDownloader:
         # Process each item URL in a new tab
         for i, url in enumerate(item_urls):
             try:
-                print(f"Processing item {i+1+self.skip_items}/{total_items}: {url}")
+                print(f"Processing item {i + 1 + self.skip_items}/{total_items}: {url}")
 
                 # Skip if this URL has already been downloaded
                 if self.is_url_downloaded(url):
                     print(f"Skipping already downloaded item: {url}")
                     continue
 
-                self._process_item_url(url, main_window, i+self.skip_items, total_items, force_download=False)
+                self._process_item_url(
+                    url,
+                    main_window,
+                    i + self.skip_items,
+                    total_items,
+                    force_download=False,
+                )
 
             except Exception as e:
-                print(f"Error processing item {i+1+self.skip_items}: {e}")
+                print(f"Error processing item {i + 1 + self.skip_items}: {e}")
                 print("Skipping this item and continuing...")
 
                 # Close the current tab if it's still open
@@ -677,7 +747,7 @@ class KofiCursorDownloader:
 
     def cleanup(self):
         """Close the browser and perform any necessary cleanup."""
-        if hasattr(self, 'driver'):
+        if hasattr(self, "driver"):
             self.driver.quit()
             print("Browser closed")
 
@@ -685,25 +755,46 @@ class KofiCursorDownloader:
 def main():
     """Main function to run the downloader."""
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Download cursor packs from bentu404's Ko-fi shop")
-    parser.add_argument("--skip", type=int, default=0, help="Number of items to skip from the beginning")
-    parser.add_argument("--headless", action="store_true", help="Run browser in headless mode")
-    parser.add_argument("--profile", type=str, help="Path to Chromium profile directory")
-    parser.add_argument("--download-dir", type=str, help="Directory to save downloaded files")
-    parser.add_argument("--skip-downloaded", action="store_true", help="Skip already downloaded items")
-    parser.add_argument("--url", type=str, help="Download a specific cursor item by its URL")
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode with full traceback")
-    parser.add_argument("--migrate", action="store_true", help="Migrate existing tracking data to add missing fields")
+    parser = argparse.ArgumentParser(
+        description="Download cursor packs from bentu404's Ko-fi shop"
+    )
+    parser.add_argument(
+        "--skip", type=int, default=0, help="Number of items to skip from the beginning"
+    )
+    parser.add_argument(
+        "--headless", action="store_true", help="Run browser in headless mode"
+    )
+    parser.add_argument(
+        "--profile", type=str, help="Path to Chromium profile directory"
+    )
+    parser.add_argument(
+        "--download-dir", type=str, help="Directory to save downloaded files"
+    )
+    parser.add_argument(
+        "--skip-downloaded", action="store_true", help="Skip already downloaded items"
+    )
+    parser.add_argument(
+        "--url", type=str, help="Download a specific cursor item by its URL"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable debug mode with full traceback"
+    )
+    parser.add_argument(
+        "--migrate",
+        action="store_true",
+        help="Migrate existing tracking data to add missing fields",
+    )
     args = parser.parse_args()
 
     # Get the directory where this script is located
     script_dir = Path(__file__).parent.parent.parent
-    download_dir = Path(args.download_dir) if args.download_dir else script_dir / "cursors"
+    download_dir = (
+        Path(args.download_dir) if args.download_dir else script_dir / "cursors"
+    )
 
     # Default Chromium profile path (can be customized)
     chromium_profile = args.profile or os.environ.get(
-        "CHROMIUM_PROFILE",
-        os.path.expanduser("~/.config/chromium")
+        "CHROMIUM_PROFILE", os.path.expanduser("~/.config/chromium")
     )
 
     print(f"Using Chromium profile: {chromium_profile}")
@@ -723,7 +814,7 @@ def main():
         headless=args.headless,
         user_profile=chromium_profile,
         skip_items=args.skip,
-        specific_url=args.url
+        specific_url=args.url,
     )
 
     try:
@@ -744,6 +835,7 @@ def main():
     except Exception as e:
         if args.debug:
             import traceback
+
             print(f"An error occurred: {e}")
             print("Full traceback:")
             traceback.print_exc()

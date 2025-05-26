@@ -173,6 +173,11 @@
                 pkgs.python3Packages.lxml
               ];
             };
+
+            all-cursors = pkgs.symlinkJoin {
+              name = "bentu404-cursors-all";
+              paths = lib.attrValues cursorPackages;
+            };
           }
           // cursorPackages;
 

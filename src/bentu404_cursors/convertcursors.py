@@ -5,6 +5,8 @@ import sys
 import argparse
 import toml
 import tempfile
+import zipfile
+import shutil
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 from wininfparser import WinINF
@@ -22,7 +24,10 @@ class ThemeConfig:
     THEME_DESCRIPTION: str = "Converted with convert-cursors.py"
     THEME_VERSION: str = "1.0"
     THEME_AUTHOR: str = "bentu404"
-    OUTPUT_DIR: str = ""  # Main output directory
+    OUTPUT_DIR: str = ""     # Main output directory
+    INF_DIR: str = ""        # Directory containing the INF file
+    TEMP_EXTRACT_DIR: str = ""  # Temporary directory for zip extraction
+    EXTRACTED_ZIP_DIRS: List[str] = field(default_factory=list)  # List of extracted zip directories
     # Base cursor size and hotspots will be determined from the actual cursor images
     XCUR_SIZES: List[int] = field(default_factory=lambda: [24, 32, 48, 64])
     cursor_mappings: Dict[str, str] = field(default_factory=dict)
@@ -33,14 +38,130 @@ class ThemeConfig:
 
 
 def parse_install_inf(input_dir, output_dir):
-    """Parse the Install.inf file to get cursor names and theme info."""
-    inf_path = os.path.join(input_dir, "install.inf")
+    """Find and parse the first .inf file in the directory tree to get cursor names and theme info.
+    Searches case-insensitively for .inf files up to a maximum depth of 3 levels.
+    Also extracts and searches nested zip files for INF files.
+    """
+    # Create a theme config object first
+    theme_config = ThemeConfig(THEME_NAME="Unknown")
 
-    if not os.path.isfile(inf_path):
-        print(f"Error: install.inf not found in {input_dir}")
+    # Create a temporary directory for extracted zip files
+    temp_extract_dir = tempfile.mkdtemp()
+    theme_config.TEMP_EXTRACT_DIR = temp_extract_dir
+    print(f"Created temporary directory for zip extraction: {temp_extract_dir}")
+
+    # Track all directories to search, including extracted zip contents
+    dirs_to_search = [input_dir]
+    extracted_zip_dirs = []
+
+    # Search for the first .inf file in the directory tree (case-insensitive)
+    inf_path = None
+    max_depth = 3  # Limit search depth to prevent extremely long searches
+
+    # First, extract any zip files that might contain the INF file
+    for root, dirs, files in os.walk(input_dir):
+        # Calculate current depth relative to input_dir
+        rel_path = os.path.relpath(root, input_dir)
+        current_depth = 0 if rel_path == '.' else rel_path.count(os.sep) + 1
+
+        # Limit search depth
+        if current_depth > max_depth:
+            # Clear dirs list to prevent further descent
+            dirs.clear()
+            continue
+
+        # Look for zip files that might contain INF files
+        for file in files:
+            if file.lower().endswith('.zip'):
+                zip_path = os.path.join(root, file)
+                print(f"Found zip file: {zip_path}")
+
+                # Create a subdirectory for this zip file
+                zip_extract_dir = os.path.join(temp_extract_dir, os.path.basename(zip_path))
+                os.makedirs(zip_extract_dir, exist_ok=True)
+
+                try:
+                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                        print(f"Extracting {zip_path} to {zip_extract_dir}")
+                        # List zip contents to help with debugging
+                        contents = zip_ref.namelist()
+                        print(f"Zip contains {len(contents)} files")
+                        # Print first 5 files to give an idea of contents
+                        for i, item in enumerate(contents[:5]):
+                            print(f"  - {item}")
+                        if len(contents) > 5:
+                            print(f"  - ... and {len(contents) - 5} more files")
+
+                        zip_ref.extractall(zip_extract_dir)
+
+                    # Add the extracted directory to our search list
+                    dirs_to_search.append(zip_extract_dir)
+                    extracted_zip_dirs.append(zip_extract_dir)
+                except Exception as e:
+                    print(f"Warning: Failed to extract {zip_path}: {e}")
+
+    # Now search all directories (original and extracted) for INF files
+    for search_dir in dirs_to_search:
+        print(f"Searching for INF files in: {search_dir}")
+
+        # List top-level contents to help with debugging
+        try:
+            top_contents = os.listdir(search_dir)
+            print(f"Directory contains {len(top_contents)} items at top level")
+            # Print first 5 items to give an idea of contents
+            for i, item in enumerate(top_contents[:5]):
+                item_path = os.path.join(search_dir, item)
+                type_str = "dir" if os.path.isdir(item_path) else "file"
+                print(f"  - {item} ({type_str})")
+            if len(top_contents) > 5:
+                print(f"  - ... and {len(top_contents) - 5} more items")
+        except Exception as e:
+            print(f"Warning: Could not list directory contents of {search_dir}: {e}")
+
+        for root, dirs, files in os.walk(search_dir):
+            # Calculate current depth relative to search_dir
+            rel_path = os.path.relpath(root, search_dir)
+            current_depth = 0 if rel_path == '.' else rel_path.count(os.sep) + 1
+
+            # Limit search depth
+            if current_depth > max_depth:
+                # Clear dirs list to prevent further descent
+                dirs.clear()
+                continue
+
+            # Only print directory info for debugging when needed
+            # print(f"Checking directory: {root} (depth {current_depth})")
+            for file in files:
+                # Skip printing every file check to reduce noise
+                # print(f"Checking file: {file}")
+                if file.lower().endswith('.inf'):
+                    inf_path = os.path.join(root, file)
+                    print(f"Found INF file: {inf_path}")
+                    break
+
+            if inf_path:
+                break
+
+        if inf_path:
+            break
+
+    if not inf_path:
+        # Clean up temporary directory
+        print(f"Cleaning up temporary directory: {temp_extract_dir}")
+        shutil.rmtree(temp_extract_dir)
+        print(f"Error: No .inf file found in {input_dir} or its extracted zip files (limited to depth {max_depth})")
         sys.exit(1)
 
-    encoding = 'gbk' # assuming because it's a Chinese Windows system
+    print(f"Using INF file: {inf_path}")
+
+    # Store the INF directory to use as base for cursor files
+    inf_dir = os.path.dirname(inf_path)
+
+    # Keep track of all extracted directories for later cleanup
+    theme_config.EXTRACTED_ZIP_DIRS = extracted_zip_dirs
+    theme_config.INF_DIR = inf_dir
+
+    encoding = "gbk"  # assuming because it's a Chinese Windows system
 
     # Parse INF file using wininfparser
     inf_file = WinINF()
@@ -56,6 +177,35 @@ def parse_install_inf(input_dir, output_dir):
     theme_name = None
     if strings_section["SCHEME_NAME"] != "":
         theme_name = strings_section["SCHEME_NAME"].replace('"', "")
+
+    # Try to extract from zip file name if available
+    if not theme_name and inf_path:
+        # Check if we're in an extracted zip directory
+        inf_dir_parts = os.path.normpath(inf_dir).split(os.sep)
+        for part in inf_dir_parts:
+            if part.lower().endswith('.zip'):
+                # Extract name from the zip filename
+                zip_name = part.rsplit('.', 1)[0]
+                if zip_name:
+                    if 'cursor' in zip_name.lower():
+                        # Try to extract a meaningful name from the zip filename
+                        name_parts = zip_name.split()
+                        # Use the first part that's not "cursor", "cursors", "pixel", etc.
+                        for name_part in name_parts:
+                            if name_part.lower() not in ['cursor', 'cursors', 'pixel', 'ani', 'install']:
+                                theme_name = name_part
+                                break
+                    else:
+                        theme_name = zip_name
+                    break
+        
+        # If still no name, try extracting from the INF path
+        if not theme_name:
+            # Try to find name in the directory structure
+            for part in inf_dir_parts:
+                if part.lower() not in ['the mouse pointer', 'cursor', 'cursors', '.', '']:
+                    theme_name = part
+                    break
 
     # Default fallback
     if not theme_name:
@@ -197,6 +347,9 @@ def parse_install_inf(input_dir, output_dir):
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
+    # Store the INF directory in theme_config for later use
+    theme_config.INF_DIR = inf_dir
+
     return theme_config
 
 
@@ -218,7 +371,11 @@ def create_dirs(output_dir, theme_config):
 
 
 def extract_cursor_images(input_dir, theme_config, add_shadow=False):
-    """Extract cursor images from .ani and .cur files for accurse."""
+    """Extract cursor images from .ani and .cur files for accurse.
+    Searches for cursor files case-insensitively relative to the INF file's location.
+    Search is limited to a maximum depth of 2 levels from the INF directory.
+    Also searches in any extracted zip directories.
+    """
     output_dir = theme_config.OUTPUT_DIR
 
     # Create a temporary directory that will be automatically cleaned up
@@ -357,25 +514,94 @@ def extract_cursor_images(input_dir, theme_config, add_shadow=False):
                 f"Processing cursor: {cursor_type} -> {cursor_file} (output as {output_name})"
             )
 
-            # Look for .ani file first
-            ani_file = os.path.join(input_dir, f"{cursor_file}.ani")
-            if os.path.exists(ani_file):
-                print(f"Found .ani file: {ani_file}")
-                if process_cursor_file(ani_file, cursor_type, output_name):
-                    success_count += 1
+            # Use the INF directory as the base path for cursor files
+            inf_dir = theme_config.INF_DIR
+
+            # Check if cursor file exists with .ani extension (case-insensitive)
+            ani_file_found = False
+            max_search_depth = 2  # Limit cursor file search depth to prevent extremely long searches
+
+            # Search all extracted zip directories as well
+            search_dirs = [inf_dir]
+            if hasattr(theme_config, 'EXTRACTED_ZIP_DIRS'):
+                search_dirs.extend(theme_config.EXTRACTED_ZIP_DIRS)
+
+            print(f"Searching for cursor file: {cursor_file}.ani (case-insensitive)")
+            # Only print detailed search info for debugging when needed
+            # print(f"Search directories: {search_dirs}")
+
+            for search_dir in search_dirs:
+                # print(f"Searching in: {search_dir}")
+                for root, dirs, files in os.walk(search_dir):
+                    # Calculate current depth relative to search_dir
+                    rel_path = os.path.relpath(root, search_dir)
+                    current_depth = 0 if rel_path == '.' else rel_path.count(os.sep) + 1
+
+                    # Limit search depth
+                    if current_depth > max_search_depth:
+                        # Clear dirs list to prevent further descent
+                        dirs.clear()
+                        continue
+
+                    # Check files without printing each one to reduce output noise
+                    for filename in files:
+                        if filename.lower() == f"{cursor_file.lower()}.ani":
+                            ani_file = os.path.join(root, filename)
+                            print(f"Found .ani file: {ani_file}")
+                            if process_cursor_file(ani_file, cursor_type, output_name):
+                                success_count += 1
+                            ani_file_found = True
+                            break
+
+                    if ani_file_found:
+                        break
+
+                if ani_file_found:
+                    break
+
+            if ani_file_found:
                 continue
 
-            # If .ani not found, look for .cur file
-            cur_file = os.path.join(input_dir, f"{cursor_file}.cur")
-            if os.path.exists(cur_file):
-                print(f"Found .cur file: {cur_file}")
-                if process_cursor_file(cur_file, cursor_type, output_name):
-                    success_count += 1
+            # If .ani not found, look for .cur file (case-insensitive)
+            cur_file_found = False
+            print(f"Searching for cursor file: {cursor_file}.cur (case-insensitive)")
+
+            for search_dir in search_dirs:
+                print(f"Searching in: {search_dir}")
+                for root, dirs, files in os.walk(search_dir):
+                    # Calculate current depth relative to search_dir
+                    rel_path = os.path.relpath(root, search_dir)
+                    current_depth = 0 if rel_path == '.' else rel_path.count(os.sep) + 1
+
+                    # Limit search depth
+                    if current_depth > max_search_depth:
+                        # Clear dirs list to prevent further descent
+                        dirs.clear()
+                        continue
+
+                    # Check files without printing each one to reduce output noise
+                    for filename in files:
+                        if filename.lower() == f"{cursor_file.lower()}.cur":
+                            cur_file = os.path.join(root, filename)
+                            print(f"Found .cur file: {cur_file}")
+                            if process_cursor_file(cur_file, cursor_type, output_name):
+                                success_count += 1
+                            cur_file_found = True
+                            break
+                    if cur_file_found:
+                        break
+
+                if cur_file_found:
+                    break
+
+            if cur_file_found:
                 continue
 
             print(
-                f"Warning: Could not find cursor file for {cursor_type} -> {cursor_file}"
+                f"Warning: Could not find cursor file for {cursor_type} -> {cursor_file} in any of the search directories"
             )
+            print(f"Tried searching for: {cursor_file}.ani and {cursor_file}.cur (case-insensitive)")
+            print(f"Search was limited to depth {max_search_depth} in directories: {search_dirs}")
 
         print(
             f"Cursor extraction completed: {success_count}/{total_count} cursors processed successfully."
@@ -461,7 +687,7 @@ def main():
         "input_dir",
         nargs="?",
         default=".",
-        help="Directory containing .ani/.cur files and install.inf",
+        help="Directory to search for .inf file and .ani/.cur cursor files",
     )
     parser.add_argument(
         "output_dir",
@@ -512,48 +738,85 @@ def main():
     print(f"Output directory: {args.output_dir}")
     print(f"X11 cursor sizes: {args.xcursizes}")
     print(f"Add shadow: {args.shadow}")
+    print("Max search depth for INF file: 3 levels")
+    print("Max search depth for cursor files: 2 levels")
+    print("Will extract and search any zip files found")
     print("=" * 60)
 
-    # Verify input directory exists
-    if not os.path.isdir(args.input_dir):
-        print(f"Error: Input directory '{args.input_dir}' does not exist!")
+    # Placeholder for theme_config to ensure it's defined for cleanup in case of errors
+    theme_config = None
+
+    try:
+        # Verify input directory exists
+        if not os.path.isdir(args.input_dir):
+            print(f"Error: Input directory '{args.input_dir}' does not exist!")
+            sys.exit(1)
+
+        # Create output directory
+        os.makedirs(args.output_dir, exist_ok=True)
+
+        # Find and parse INF file
+        print("Searching for INF file in directory tree and nested zip files (case-insensitive)...")
+        theme_config = parse_install_inf(args.input_dir, args.output_dir)
+        print(f"Using cursor files relative to INF file location: {theme_config.INF_DIR}")
+        print("All cursor files (.ani and .cur) will be searched case-insensitively")
+
+        # Update theme config with command-line parameters
+        theme_config.THEME_VERSION = args.version
+        theme_config.THEME_DESCRIPTION = args.description
+        theme_config.XCUR_SIZES = args.xcursizes
+
+        # Override theme name if provided via command line
+        if args.name:
+            theme_config.THEME_NAME = args.name
+            print(f"Using custom theme name: {args.name}")
+        # Make sure theme name is not empty or just whitespace
+        elif not theme_config.THEME_NAME or theme_config.THEME_NAME.strip() == "":
+            # Try to use the input directory name as a fallback
+            dir_name = os.path.basename(os.path.abspath(args.input_dir))
+            if dir_name and dir_name != "." and dir_name != "..":
+                theme_config.THEME_NAME = dir_name
+                print(f"Using input directory as theme name: {dir_name}")
+            else:
+                # Final fallback
+                theme_config.THEME_NAME = "unknown_cursor_theme"
+                print(f"Using default theme name: {theme_config.THEME_NAME}")
+
+        # Create output directories
+        create_dirs(args.output_dir, theme_config)
+
+        # Extract cursor images (using the INF file's directory as base)
+        extract_cursor_images(theme_config.INF_DIR, theme_config, add_shadow=args.shadow)
+
+        # Create metadata.toml file
+        create_metadata_toml(theme_config)
+
+        print("\n" + "=" * 60)
+        print("Conversion completed successfully!")
+        print("=" * 60)
+        print(f"INF file used: {theme_config.INF_DIR}")
+        print(f"Output theme directory: {theme_config.OUTPUT_DIR}")
+        print("\nNext steps:")
+        print("1. To compile the cursor theme, use:")
+        print(f"   accurse {os.path.join(theme_config.OUTPUT_DIR, 'metadata.toml')}")
+        print("\n2. After compilation, copy the theme to your icons directory:")
+        print(f"   cp -r {theme_config.OUTPUT_DIR} ~/.local/share/icons/")
+        print("=" * 60)
+
+    except Exception as e:
+        print(f"\nError: An unexpected error occurred: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
-
-    # Parse INF file
-    theme_config = parse_install_inf(args.input_dir, args.output_dir)
-
-    # Update theme config with command-line parameters
-    theme_config.THEME_VERSION = args.version
-    theme_config.THEME_DESCRIPTION = args.description
-    theme_config.XCUR_SIZES = args.xcursizes
-
-    # Override theme name if provided
-    if args.name:
-        theme_config.THEME_NAME = args.name
-        print(f"Using custom theme name: {args.name}")
-
-    # Create output directories
-    create_dirs(args.output_dir, theme_config)
-
-    # Extract cursor images
-    extract_cursor_images(args.input_dir, theme_config, add_shadow=args.shadow)
-
-    # Create metadata.toml file
-    create_metadata_toml(theme_config)
-
-    print("\n" + "=" * 60)
-    print("Conversion completed successfully!")
-    print("=" * 60)
-    print(f"Output theme directory: {theme_config.OUTPUT_DIR}")
-    print("\nNext steps:")
-    print("1. To compile the cursor theme, use:")
-    print(f"   accurse {os.path.join(theme_config.OUTPUT_DIR, 'metadata.toml')}")
-    print("\n2. After compilation, copy the theme to your icons directory:")
-    print(f"   cp -r {theme_config.OUTPUT_DIR} ~/.local/share/icons/")
-    print("=" * 60)
+    finally:
+        # Clean up temporary directories even if an error occurred
+        if theme_config and hasattr(theme_config, 'TEMP_EXTRACT_DIR') and theme_config.TEMP_EXTRACT_DIR:
+            print(f"Cleaning up temporary extraction directory: {theme_config.TEMP_EXTRACT_DIR}")
+            try:
+                shutil.rmtree(theme_config.TEMP_EXTRACT_DIR)
+            except Exception as cleanup_error:
+                print(f"Warning: Failed to clean up temporary directory: {cleanup_error}")
 
 
 if __name__ == "__main__":

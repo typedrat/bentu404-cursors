@@ -8,10 +8,12 @@ OVERRIDES_JSON = "overrides.json"
 PREVIEW_DIR = "previews"
 README_PATH = os.path.join(PREVIEW_DIR, "README.md")
 
+
 def get_extension_from_url(url: str) -> str:
     path = urlparse(url).path
     _, ext = os.path.splitext(path)
     return ext if ext else ".gif"
+
 
 def main():
     with open(CURSORS_JSON, "r", encoding="utf-8") as f:
@@ -47,13 +49,19 @@ def main():
     print(f"Writing {README_PATH}...")
     with open(README_PATH, "w", encoding="utf-8") as f:
         col_widths = [max(len(row[i]) for row in table_rows) for i in range(2)]
+
         def fmt_row(row):
-            return "| " + " | ".join(f"{cell:<{col_widths[i]}}" for i, cell in enumerate(row)) + " |"
+            return (
+                "| "
+                + " | ".join(f"{cell:<{col_widths[i]}}" for i, cell in enumerate(row))
+                + " |"
+            )
 
         f.write(fmt_row(table_rows[0]) + "\n")
         f.write("| :---: | --- |\n")
         for row in table_rows[1:]:
             f.write(fmt_row(row) + "\n")
+
 
 if __name__ == "__main__":
     main()
