@@ -1,0 +1,25 @@
+[project]
+name = "bentu404-cursors"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "accurse>=0.1.0",
+    "chardet>=5.2.0",
+    "requests>=2.32.3",
+    "selenium>=4.33.0",
+    "toml>=0.10.2",
+    "win2xcur>=0.1.2",
+    "wininfparser>=1.0.12.1",
+]
+
+[project.scripts]
+convertcursors = "bentu404_cursors:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6.7",
+]

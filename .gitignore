@@ -1,0 +1,19 @@
+.direnv/
+result/
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.ropeproject/
+.ruff_cache/
+
+# Cursor stuff
+cursors/*.zip
+output/*
